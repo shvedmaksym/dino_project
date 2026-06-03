@@ -21,8 +21,30 @@ BG_COLOR = (247, 247, 244)
 GROUND_COLOR = (83, 83, 80)
 DINO_COLOR = (50, 50, 48)
 CACTUS_COLOR = (83, 83, 80)
+CLOUD_COLOR = (210, 210, 210)
 HI_SCORE_COLOR = (150, 150, 150)
 RECORD_ANN_COLOR = (255, 0, 0)
+
+
+class Cloud:
+    def __init__(self, start_x=None):
+        # Якщо x не задано, ставимо хмару далеко за край екрана (великий розкид)
+        if start_x is not None:
+            self.x = start_x
+        else:
+            self.x = W + random.randint(100, 800)
+
+        self.y = random.randint(20, 150)
+        self.w = random.randint(50, 90)
+
+    def update(self, game_speed):
+        # Швидкість ще трохи зменшив для плавності
+        self.x -= (game_speed / 4)
+
+    def draw(self, surf):
+        pygame.draw.ellipse(surf, CLOUD_COLOR, (self.x, self.y, self.w, 28))
+        pygame.draw.ellipse(surf, CLOUD_COLOR, (self.x + 18, self.y - 12, self.w - 15, 30))
+        pygame.draw.ellipse(surf, CLOUD_COLOR, (self.x + 30, self.y + 6, self.w - 25, 22))
 
 
 class Player:
@@ -58,7 +80,6 @@ class Player:
         on_ground = (self.y >= GROUND - self.H - 10)
         adj_anim_speed = max(2, 7 - int(current_speed // 4))
         leg = (self.frame // adj_anim_speed) % 2
-
         pygame.draw.rect(surf, c, (x - 8, y + 15, 10, 7), border_radius=2)
         pygame.draw.rect(surf, c, (x - 12, y + 18, 6, 5), border_radius=2)
         pygame.draw.rect(surf, c, (x, y + 6, 28, 26), border_radius=4)
@@ -69,7 +90,6 @@ class Player:
         pygame.draw.rect(surf, BG_COLOR, (x + 26, y - 10, 4, 4))
         pygame.draw.rect(surf, c, (x + 25, y + 1, 8, 4), border_radius=2)
         pygame.draw.rect(surf, c, (x + 16, y + 30, 8, 5), border_radius=2)
-
         if on_ground:
             if leg == 0:
                 pygame.draw.rect(surf, c, (x + 3, y + 32, 8, 14), border_radius=2)
@@ -86,10 +106,12 @@ class Player:
 
 
 def reset_game():
-    global score, game_speed, obstacles, spawn_timer, game_over, new_high_score_reached
+    global score, game_speed, obstacles, clouds, spawn_timer, game_over, new_high_score_reached
     score = 0.0
     game_speed = START_SPEED
     obstacles = []
+    # Розтягуємо хмари дуже далеко при рестарті
+    clouds = [Cloud(random.randint(0, 2400)) for _ in range(8)]
     spawn_timer = 0
     game_over = False
     new_high_score_reached = False
@@ -106,6 +128,8 @@ game_over = False
 new_high_score_reached = False
 player = Player()
 obstacles = []
+# Розтягуємо початкові хмари (від 0 до 2400 пікселів по горизонталі)
+clouds = [Cloud(random.randint(0, 2400)) for _ in range(8)]
 spawn_timer = 0
 game_speed = START_SPEED
 
@@ -125,6 +149,10 @@ while True:
                 else:
                     player.jump()
 
+    # Малюємо хмари спочатку (вони на задньому плані)
+    for cloud in clouds:
+        cloud.draw(screen)
+
     if not game_started:
         title = font.render("DINO RUN", True, DINO_COLOR)
         start_text = font.render("SPACE TO START", True, DINO_COLOR)
@@ -139,7 +167,6 @@ while True:
             pygame.draw.rect(screen, CACTUS_COLOR, obs, border_radius=3)
         player.draw(screen, 0)
 
-        # ВИБІР НАПИСУ ПРИ ЗАКІНЧЕННІ
         if new_high_score_reached:
             header_text = large_font.render("NEW RECORD! WOW!", True, RECORD_ANN_COLOR)
         else:
@@ -155,15 +182,20 @@ while True:
         screen.blit(hi_score_surf, (20, 50))
 
     else:
+        # Рух хмар
+        for cloud in clouds[:]:
+            cloud.update(game_speed)
+            if cloud.x < -200:
+                clouds.remove(cloud)
+                # Додаємо нову хмару з великим випадковим відступом
+                clouds.append(Cloud(W + random.randint(200, 1000)))
+
         if game_speed < MAX_SPEED:
             game_speed += 0.001
-
         score += game_speed / 50
 
-        # Перевірка рекорду
         if high_score > 0 and int(score) > high_score and not new_high_score_reached:
             new_high_score_reached = True
-
         if int(score) > high_score:
             high_score = int(score)
 
@@ -188,10 +220,8 @@ while True:
             if obs.height > 45:
                 pygame.draw.rect(screen, CACTUS_COLOR, (obs.x - 6, obs.y + 15, 6, 12), border_radius=2)
                 pygame.draw.rect(screen, CACTUS_COLOR, (obs.x + obs.width, obs.y + 10, 6, 15), border_radius=2)
-
             if player_rect.colliderect(obs):
                 game_over = True
-
             if obs.x < -60:
                 obstacles.remove(obs)
 
