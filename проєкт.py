@@ -17,28 +17,49 @@ font = pygame.font.SysFont("Arial", 24)
 large_font = pygame.font.SysFont("Arial", 48, bold=True)
 small_font = pygame.font.SysFont("Arial", 18)
 
-# === НАЛАШТУВАННЯ ПАЛІТР ДНЯ ТА НОЧІ ===
-DAY_BG          = (247, 247, 244)
-DAY_GROUND      = (83, 83, 80)
-DAY_DINO        = (50, 50, 48)
-DAY_CACTUS      = (83, 83, 80)
-DAY_CLOUD       = (210, 210, 210)
+DAY_BG = (247, 247, 244)
+DAY_GROUND = (83, 83, 80)
+DAY_DINO = (50, 50, 48)
+DAY_CACTUS = (83, 83, 80)
+DAY_CLOUD = (210, 210, 210)
 
-NIGHT_BG        = (32, 32, 34)
-NIGHT_GROUND    = (170, 170, 173)
-NIGHT_DINO      = (230, 230, 233)
-NIGHT_CACTUS    = (170, 170, 173)
-NIGHT_CLOUD     = (70, 70, 75)
+NIGHT_BG = (32, 32, 34)
+NIGHT_GROUND = (170, 170, 173)
+NIGHT_DINO = (230, 230, 233)
+NIGHT_CACTUS = (170, 170, 173)
+NIGHT_CLOUD = (70, 70, 75)
 
-# Поточні робочі кольори (ініціалізуємо денними)
-BG_COLOR = DAY_BG
-GROUND_COLOR = DAY_GROUND
-DINO_COLOR = DAY_DINO
-CACTUS_COLOR = DAY_CACTUS
-CLOUD_COLOR = DAY_CLOUD
+BG_COLOR = list(DAY_BG)
+GROUND_COLOR = list(DAY_GROUND)
+DINO_COLOR = list(DAY_DINO)
+CACTUS_COLOR = list(DAY_CACTUS)
+CLOUD_COLOR = list(DAY_CLOUD)
 
 HI_SCORE_COLOR = (150, 150, 150)
 RECORD_ANN_COLOR = (255, 0, 0)
+night_alpha = 0.0
+
+class Star:
+    def __init__(self):
+        self.x = random.randint(0, W)
+        self.y = random.randint(10, 140)
+        self.size = random.randint(1, 3)
+        self.blink_speed = random.uniform(0.02, 0.05)
+        self.angle = random.uniform(0, 6.28)
+
+    def update(self):
+        self.angle += self.blink_speed
+
+    def draw(self, surf, global_alpha):
+        current_alpha = int((abs(math.sin(self.angle)) * 155 + 100) * global_alpha)
+        current_alpha = max(0, min(255, current_alpha))
+        star_c = (NIGHT_DINO[0], NIGHT_DINO[1], NIGHT_DINO[2])
+        if current_alpha > 0:
+            pygame.draw.rect(surf, star_c, (self.x, self.y, self.size, self.size))
+
+
+import math
+stars = [Star() for _ in range(25)]
 
 
 class Cloud:
@@ -100,7 +121,7 @@ class Player:
         pygame.draw.rect(surf, c, (x + 10, y - 14, 22, 16), border_radius=4)
         pygame.draw.rect(surf, c, (x + 12, y - 22, 6, 10), border_radius=2)
         pygame.draw.rect(surf, c, (x + 20, y - 18, 5, 7), border_radius=2)
-        pygame.draw.rect(surf, BG_COLOR, (x + 26, y - 10, 4, 4)) # Використовує динамічний BG_COLOR для ока
+        pygame.draw.rect(surf, BG_COLOR, (x + 26, y - 10, 4, 4))
         pygame.draw.rect(surf, c, (x + 25, y + 1, 8, 4), border_radius=2)
         pygame.draw.rect(surf, c, (x + 16, y + 30, 8, 5), border_radius=2)
         if on_ground:
@@ -119,7 +140,7 @@ class Player:
 
 
 def reset_game():
-    global score, game_speed, obstacles, clouds, spawn_timer, game_over, new_high_score_reached
+    global score, game_speed, obstacles, clouds, spawn_timer, game_over, new_high_score_reached, BG_COLOR, GROUND_COLOR, DINO_COLOR, CACTUS_COLOR, CLOUD_COLOR, night_alpha
     score = 0.0
     game_speed = START_SPEED
     obstacles = []
@@ -127,32 +148,43 @@ def reset_game():
     spawn_timer = 0
     game_over = False
     new_high_score_reached = False
+    night_alpha = 0.0
     player.reset()
-    update_game_colors(0) # Скидаємо кольори на денні
+    BG_COLOR[:] = DAY_BG
+    GROUND_COLOR[:] = DAY_GROUND
+    DINO_COLOR[:] = DAY_DINO
+    CACTUS_COLOR[:] = DAY_CACTUS
+    CLOUD_COLOR[:] = DAY_CLOUD
 
 
-# === ФУНКЦІЯ ОНОВЛЕННЯ КОЛЬОРІВ (ДЕНЬ / НІЧ) ===
+def lerp_color(current, target, speed=0.02):
+    for i in range(3):
+        current[i] += (target[i] - current[i]) * speed
+
+
 def update_game_colors(current_score):
-    global BG_COLOR, GROUND_COLOR, DINO_COLOR, CACTUS_COLOR, CLOUD_COLOR, HI_SCORE_COLOR
-    
-    # Визначаємо цикл дня і ночі кожні 700 очок (700 очок день, 700 очок ніч і т.д.)
-    # Поділ на 700 дає нам номер циклу. Якщо остача від ділення на 2 дорівнює 1 — вмикається ніч.
+    global HI_SCORE_COLOR, night_alpha
     is_night = (int(current_score) // 700) % 2 == 1
-    
     if is_night:
-        BG_COLOR = NIGHT_BG
-        GROUND_COLOR = NIGHT_GROUND
-        DINO_COLOR = NIGHT_DINO
-        CACTUS_COLOR = NIGHT_CACTUS
-        CLOUD_COLOR = NIGHT_CLOUD
-        HI_SCORE_COLOR = (180, 180, 180) # Робимо текст рекорду трохи чіткішим вночі
+        target_bg, target_ground, target_dino, target_cactus, target_cloud = NIGHT_BG, NIGHT_GROUND, NIGHT_DINO, NIGHT_CACTUS, NIGHT_CLOUD
+        HI_SCORE_COLOR = (180, 180, 180)
+        night_alpha += (1.0 - night_alpha) * 0.02
     else:
-        BG_COLOR = DAY_BG
-        GROUND_COLOR = DAY_GROUND
-        DINO_COLOR = DAY_DINO
-        CACTUS_COLOR = DAY_CACTUS
-        CLOUD_COLOR = DAY_CLOUD
+        target_bg, target_ground, target_dino, target_cactus, target_cloud = DAY_BG, DAY_GROUND, DAY_DINO, DAY_CACTUS, DAY_CLOUD
         HI_SCORE_COLOR = (150, 150, 150)
+        night_alpha += (0.0 - night_alpha) * 0.02
+    lerp_color(BG_COLOR, target_bg)
+    lerp_color(GROUND_COLOR, target_ground)
+    lerp_color(DINO_COLOR, target_dino)
+    lerp_color(CACTUS_COLOR, target_cactus)
+    lerp_color(CLOUD_COLOR, target_cloud)
+
+
+def draw_moon(surf, global_alpha):
+    if global_alpha > 0.05:
+        mx, my = W - 150, 50
+        pygame.draw.circle(surf, NIGHT_GROUND, (mx, my), 22)
+        pygame.draw.circle(surf, (int(BG_COLOR[0]), int(BG_COLOR[1]), int(BG_COLOR[2])), (mx - 8, my - 4), 20)
 
 
 START_SPEED = 6.5
@@ -170,10 +202,14 @@ spawn_timer = 0
 game_speed = START_SPEED
 
 while True:
-    # Динамічно оновлюємо палітру кольорів залежно від поточного прогресу очок
     update_game_colors(score)
 
     screen.fill(BG_COLOR)
+
+    for star in stars:
+        star.update()
+        star.draw(screen, night_alpha)
+    draw_moon(screen, night_alpha)
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -188,7 +224,6 @@ while True:
                 else:
                     player.jump()
 
-    # Малюємо хмари спочатку (вони на задньому плані)
     for cloud in clouds:
         cloud.draw(screen)
 
@@ -221,7 +256,6 @@ while True:
         screen.blit(hi_score_surf, (20, 50))
 
     else:
-        # Рух хмар
         for cloud in clouds[:]:
             cloud.update(game_speed)
             if cloud.x < -200:
