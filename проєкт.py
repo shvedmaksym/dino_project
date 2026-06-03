@@ -20,20 +20,69 @@ GROUND_COLOR = (83, 83, 80)
 DINO_COLOR = (50, 50, 48)
 CACTUS_COLOR = (83, 83, 80)
 
-game_started = False
+class Player:
+    W, H = 40, 46
+
+    def __init__(self):
+        self.x     = 90
+        self.y     = float(GROUND - self.H - 10)
+        self.vy    = 0.0
+        self.jumps = 0
+        self.frame = 0
+        self.trail = []
+
+    def jump(self):
+        if self.jumps < 2:
+            self.vy     = JUMP_F if self.jumps == 0 else JUMP_F * 0.78
+            self.jumps += 1
+
+    def update(self):
+        self.vy    += G
+        self.y     += self.vy
+        self.frame += 1
+        if self.y >= GROUND - self.H - 10:
+            self.y     = float(GROUND - self.H - 10)
+            self.vy    = 0.0
+            self.jumps = 0
+        self.trail.append((self.x + self.W // 2, int(self.y + self.H // 2)))
+        if len(self.trail) > 8:
+            self.trail.pop(0)
+
+    def draw(self, surf):
+        x, y      = int(self.x), int(self.y)
+        c         = DINO_COLOR
+        on_ground = self.jumps == 0
+        leg       = (self.frame // 6) % 2
+
+        pygame.draw.rect(surf, c, (x - 10, y + 18, 12, 8),  border_radius=3)
+        pygame.draw.rect(surf, c, (x - 14, y + 22, 8,  6),  border_radius=2)
+        pygame.draw.rect(surf, c, (x,      y + 8,  34, 32), border_radius=4)
+        pygame.draw.rect(surf, c, (x + 18, y - 2,  16, 14), border_radius=3)
+        pygame.draw.rect(surf, c, (x + 14, y - 16, 28, 18), border_radius=5)
+        pygame.draw.rect(surf, c, (x + 16, y - 26, 8,  12), border_radius=3)
+        pygame.draw.rect(surf, c, (x + 26, y - 22, 6,   8), border_radius=2)
+        pygame.draw.rect(surf, BG_COLOR, (x + 34, y - 10, 5, 5))
+        pygame.draw.rect(surf, c,  (x + 32, y + 2,  10, 5), border_radius=2)
+        pygame.draw.rect(surf, c,  (x + 22, y + 36, 10, 6), border_radius=2)
+
+        if on_ground:
+            if leg == 0:
+                pygame.draw.rect(surf, c, (x + 4,  y + 38, 10, 18), border_radius=3)
+                pygame.draw.rect(surf, c, (x + 18, y + 38,  9, 12), border_radius=3)
+            else:
+                pygame.draw.rect(surf, c, (x + 4,  y + 38,  9, 12), border_radius=3)
+                pygame.draw.rect(surf, c, (x + 18, y + 38, 10, 18), border_radius=3)
+        else:
+            pygame.draw.rect(surf, c, (x + 4,  y + 38, 10, 14), border_radius=3)
+            pygame.draw.rect(surf, c, (x + 18, y + 38, 10, 14), border_radius=3)
+
+    def get_rect(self):
+        return pygame.Rect(int(self.x) + 2, int(self.y) - 6, self.W + 6, self.H + 16)
+
 score = 0
+game_started = False
 
-x, y = 100, float(GROUND - 40)
-vy = 0.0
-on_ground = True
-player_width = 40
-player_height = 40
-
-player_rect = pygame.Rect(x, int(y), player_width, player_height)
-
-leg_state = 0
-animation_timer = 0
-animation_speed = 6
+player = Player()
 
 obstacles = []
 spawn_timer = 0
@@ -50,9 +99,8 @@ while True:
             if event.key == pygame.K_SPACE:
                 if not game_started:
                     game_started = True
-                elif on_ground:
-                    vy        = JUMP_F
-                    on_ground = False
+                else:
+                    player.jump()
 
     if not game_started:
         title = font.render("DINO RUN", True, DINO_COLOR)
@@ -61,32 +109,14 @@ while True:
         screen.blit(start_text, (W//2 - start_text.get_width()//2, 180))
         
         pygame.draw.rect(screen, GROUND_COLOR, (0, GROUND, W, H - GROUND))
-        pygame.draw.rect(screen, DINO_COLOR, (x, int(y), player_width, player_height - 8))
-        pygame.draw.rect(screen, DINO_COLOR, (x + 8, int(y) + player_height - 8, 5, 8))
-        pygame.draw.rect(screen, DINO_COLOR, (x + player_width - 13, int(y) + player_height - 8, 5, 8))
-        
+        player.draw(screen)
         pygame.display.flip()
         clock.tick(FPS)
         continue
 
     score += 1
 
-    if not on_ground:
-        leg_state = 0
-    else:
-        animation_timer += 1
-        if animation_timer >= animation_speed:
-            leg_state = 1 - leg_state
-            animation_timer = 0
-
-    vy += G
-    y  += vy
-    if y >= GROUND - 40:
-        y         = float(GROUND - 40)
-        vy        = 0.0
-        on_ground = True
-
-    player_rect.y = int(y)
+    player.update()
 
     spawn_timer += 1
     if spawn_timer > 90:
@@ -101,6 +131,7 @@ while True:
                 obstacles.append(obs2)
         spawn_timer = 0
 
+    player_rect = player.get_rect()
     for obs in obstacles[:]:
         obs.x -= game_speed
         pygame.draw.rect(screen, CACTUS_COLOR, obs)
@@ -119,19 +150,7 @@ while True:
             obstacles.remove(obs)
 
     pygame.draw.rect(screen, GROUND_COLOR, (0, GROUND, W, H - GROUND))
-
-    pygame.draw.rect(screen, DINO_COLOR, (x, int(y), player_width, player_height - 8))
-    
-    left_leg_x = x + 8
-    right_leg_x = x + player_width - 13
-    legs_y = int(y) + player_height - 8
-    
-    if leg_state == 0:
-        pygame.draw.rect(screen, DINO_COLOR, (left_leg_x, legs_y, 5, 8))
-        pygame.draw.rect(screen, DINO_COLOR, (right_leg_x, legs_y, 5, 4))
-    else:
-        pygame.draw.rect(screen, DINO_COLOR, (left_leg_x, legs_y, 5, 4))
-        pygame.draw.rect(screen, DINO_COLOR, (right_leg_x, legs_y, 5, 8))
+    player.draw(screen)
 
     screen.blit(font.render(f"Score: {score // 8}", True, DINO_COLOR), (10, 10))
 
